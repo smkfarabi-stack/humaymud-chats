@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HumayMud Chats</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4a148c">
+    <link rel="apple-touch-icon" href="logo.png">
+
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        /* --- RESET & BASICS --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { height: 100vh; display: flex; background-color: #f3f0f5; overflow: hidden; }
+        
+        /* COLORS */
+        :root { --ocean-deep: #006064; --purple-vivid: #7b1fa2; --text-white: #ffffff; }
+
+        /* SIDEBAR */
+        .sidebar { width: 320px; background: linear-gradient(160deg, var(--ocean-deep) 0%, #4a148c 100%); color: white; display: flex; flex-direction: column; padding: 20px; z-index: 10; box-shadow: 4px 0 20px rgba(0,0,0,0.25); }
+        .brand { text-align: center; margin-bottom: 20px; }
+        .brand img { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #00acc1; background: white; object-fit: cover; }
+        .panel { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.1); }
+        #my-id { font-family: monospace; font-size: 1.1rem; color: #00acc1; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; display: block; margin-bottom: 10px; word-break: break-all; text-align: center; }
+        input { width: 100%; padding: 12px; border-radius: 6px; border: none; margin-bottom: 10px; outline: none; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; margin-bottom: 5px; }
+        .btn-call { background: var(--purple-vivid); }
+        .btn-file { background: var(--ocean-deep); }
+        .creator-info { margin-top: auto; font-size: 0.75rem; text-align: center; opacity: 0.7; }
+        .creator-info a { color: #00acc1; text-decoration: none; }
+
+        /* MAIN CONTENT */
+        .main-content { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .video-container { flex: 1; display: flex; gap: 10px; max-height: 50%; }
+        .video-card { flex: 1; background: black; border-radius: 10px; overflow: hidden; position: relative; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .chat-container { flex: 1; background: white; border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #ddd; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #fdfdfd; }
+        .message { margin-bottom: 10px; max-width: 80%; padding: 8px 12px; border-radius: 10px; font-size: 0.9rem; }
+        .msg-remote { background: #e0f2f1; color: #004d40; align-self: flex-start; margin-right: auto; }
+        .msg-local { background: #f3e5f5; color: #4a148c; align-self: flex-end; margin-left: auto; text-align: right; }
+        .input-area { padding: 10px; background: #f5f5f5; display: flex; gap: 10px; border-top: 1px solid #ddd; }
+        #chat-input { flex: 1; border: 1px solid #ccc; }
+
+        /* RESPONSIVE FOR MOBILE */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; flex-direction: row; padding: 10px; overflow-x: auto; gap: 15px; align-items: center; }
+            .brand img { width: 40px; height: 40px; }
+            .brand h1, .slogan, .creator-info { display: none; } /* Hide extra text on mobile */
+            .panel { padding: 10px; margin: 0; min-width: 200px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="brand">
+            <img src="logo.png" alt="HM">
+            <h1>HumayMud</h1>
+            <p class="slogan">Secure P2P Chat</p>
+        </div>
+        <div class="panel">
+            <div style="font-size:0.8rem; opacity:0.8;">YOUR ID</div>
+            <div id="my-id">Loading...</div>
+        </div>
+        <div class="panel">
+            <input type="text" id="remote-id" placeholder="Client ID...">
+            <button class="btn btn-call" onclick="makeConnection()"><i class="fas fa-video"></i> Connect</button>
+        </div>
+        <div class="creator-info">
+            <p>By <strong>smkfarabi</strong></p>
+            <a href="https://github.com/smkfarabi" target="_blank">Contact</a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="video-container">
+            <div class="video-card"><video id="local-video" autoplay muted></video></div>
+            <div class="video-card"><video id="remote-video" autoplay></video></div>
+        </div>
+        <div class="chat-container">
+            <div class="chat-messages" id="chat-box">
+                <div style="text-align:center; color:#888; font-size:0.8rem;">Waiting for connection...</div>
+            </div>
+            <div class="input-area">
+                <input type="text" id="chat-input" placeholder="Type message..." onkeypress="handleEnter(event)">
+                <button class="btn btn-call" style="width:50px;" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="file-input" style="display:none;" onchange="sendFile()">
+
+    <script>
+        // --- PWA SERVICE WORKER REGISTRATION ---
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+
+        // --- APP LOGIC ---
+        const peer = new Peer(); 
+        let conn, myStream;
+
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(s => { document.getElementById('local-video').srcObject = s; myStream = s; })
+        .catch(e => alert("Camera blocked!"));
+
+        peer.on('open', id => document.getElementById('my-id').innerText = id);
+        
+        peer.on('call', call => {
+            call.answer(myStream);
+            call.on('stream', rs => document.getElementById('remote-video').srcObject = rs);
+        });
+
+        peer.on('connection', c => { conn = c; setupData(); alert("Connected!"); });
+
+        function makeConnection() {
+            const id = document.getElementById('remote-id').value;
+            if(!id) return alert("Enter ID!");
+            const call = peer.call(id, myStream);
+            call.on('stream', rs => document.getElementById('remote-video').srcObject = rs);
+            conn = peer.connect(id);
+            conn.on('open', () => { setupData(); alert("Chat Connected!"); });
+        }
+
+        function sendChat() {
+            const txt = document.getElementById('chat-input').value;
+            if(!txt || !conn) return;
+            conn.send({ type: 'chat', msg: txt });
+            addMsg(txt, 'local');
+            document.getElementById('chat-input').value = '';
+        }
+
+        function setupData() {
+            conn.on('data', d => {
+                if(d.type==='chat') addMsg(d.msg, 'remote');
+            });
+        }
+
+        function addMsg(txt, type) {
+            const box = document.getElementById('chat-box');
+            const d = document.createElement('div');
+            d.className = `message msg-${type}`;
+            d.innerText = txt;
+            box.appendChild(d);
+            box.scrollTop = box.scrollHeight;
+        }
+        function handleEnter(e) { if(e.key === "Enter") sendChat(); }
+    </script>
+</body>
+</html>
